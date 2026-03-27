@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>TRAY NAVI - 엑셀 업로드형</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; background: #1a1a1a; margin: 0; display: flex; height: 100vh; color: #eee; overflow: hidden; }
+        .canvas-container { flex: 1; position: relative; overflow: hidden; background: #000; }
+        canvas { display: block; image-rendering: auto; cursor: crosshair; }
+        
+        .side-panel { width: 300px; background: #252525; border-left: 2px solid #444; display: flex; flex-direction: column; padding: 15px; box-sizing: border-box; z-index: 100; }
+        h4 { margin: 0 0 10px 0; color: #4da3ff; border-bottom: 2px solid #1a73e8; padding-bottom: 5px; }
+        
+        .upload-section { background: #333; padding: 12px; border-radius: 6px; margin-bottom: 15px; border: 2px dashed #1a73e8; }
+        input[type="file"] { width: 100%; color: #ccc; font-size: 11px; margin-top: 5px; }
+
+        input[type="text"], input[type="number"] { width: 100%; padding: 10px; background: #444; color: #fff; border: 1px solid #666; border-radius: 4px; margin-bottom: 8px; box-sizing: border-box; }
+        .btn-calc { width: 100%; padding: 15px; background: #1a73e8; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; }
+        
+        .log-box { flex: 1; margin-top: 15px; background: #111; border: 1px solid #444; overflow-y: auto; font-size: 12px; padding: 10px; border-radius: 4px; }
+        .status-msg { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.8); color: #fff; padding: 12px 20px; border-radius: 6px; font-weight: bold; z-index: 200; border-left: 5px solid #28a745; display: none; }
+    </style>
+</head>
+<body>
+
+<div class="canvas-container" id="container">
+    <div class="status-msg" id="statusMsg">파일 분석 중...</div>
+    <canvas id="trayCanvas"></canvas>
+</div>
+
+<div class="side-panel">
+    <h4>TRAY ENGINE v10.0</h4>
+    
+    <div class="upload-section">
+        <label style="font-size:12px; font-weight:bold; color:#4da3ff;">📁 엑셀 파일 업로드</label>
+        <input type="file" id="fileInput" accept=".xlsx, .xls">
+        <p style="font-size:10px; color:#888; margin: 5px 0 0 0;">첫 번째 시트의 데이터를 자동으로 읽습니다.</p>
+    </div>
+    
+    <label style="font-size:11px; color:#ccc;">경로 검색</label>
+    <input type="text" id="startId" placeholder="출발 ID (예: NG01)">
+    <input type="text" id="endId" placeholder="도착 ID (예: ND01)">
+    <input type="number" id="extraM" value="8" title="여장(m)">
+    
+    <button class="btn-calc" onclick="calculate()">최단 경로 계산</button>
+    
+    <div class="log-box" id="logBox"></div>
+</div>
+
+<script>
+    const canvas = document.getElementById('trayCanvas');
+    const ctx = canvas.getContext('2d');
+    let mapData = [], pathArr = [];
+    let scale = 1.0, offX = 50, offY = 50;
+    const cw = 32, ch = 24;
+
+    // [파일 업로드 처리]
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        const status = document.getElementById('statusMsg');
+        status.style.display = "block";
+        status.innerText = "파일 읽는 중...";
+
+        const reader = new FileReader();
+        reader.onload = function(evt) {
+            const data = evt.target.result;
+            const workbook = XLSX.read(data, { type: 'binary' });
+            
+            // 첫 번째 시트 선택
+            const sheetName = workbook.SheetNames[0];
+            const sheet = workbook.Sheets[sheetName];
+            
+            // 시트 데이터를 2차원 배열로 변환
+            mapData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+
+            // 빈 셀 처리 (undefined를 빈 문자열로)
+            mapData = mapData.map(row => row.map(cell => cell ? String(cell).trim() : ""));
+
+            status.innerText = `✅ 로드 완료: ${mapData.length}행 x ${mapData[0].length}열`;
+            pathArr = [];
+            resetView();
+            render();
+        };
+        reader.readAsBinaryString(file);
+    });
+
+    function isTray(v) {
+        if (!v) return false;
+        const s = v.toUpperCase();
+        return (s === "ㅇ" || s === "O" || s === "T" || /^[A-Z]{2}\d{2}$/.test(s));
+    }
+
+    function render() {
+        ctx.setTransform(1, 0, 0, 1, 0, 0);
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+        if(!mapData.length) return;
+
+        ctx.translate(offX, offY);
+        ctx.scale(scale, scale);
+
+        for(let r=0; r<mapData.length; r++) {
+            for(let c=0; c<mapData[r].length; c++) {
+                const val = mapData[r][c];
+                const x = c * cw, y = r * ch;
+
+                if (isTray(val)) {
+                    ctx.fillStyle = "#2c3e50";
+                    ctx.fillRect(x, y, cw - 1, ch - 1);
+                    if (val.length > 1 && val.toUpperCase() !== "ㅇ") {
+                        ctx.fillStyle = "#ffffff";
+                        ctx.font = "bold 11px Arial";
+                        ctx.textAlign = "center";
+                        ctx.fillText(val.toUpperCase(), x + cw/2, y + 16);
+                    }
+                } else {
+                    ctx.fillStyle = "#111";
+                    ctx.fillRect(x, y, cw - 1, ch - 1);
+                }
+            }
+        }
+
+        if(pathArr.length) {
+            ctx.fillStyle = "rgba(255, 235, 59, 0.7)";
+            pathArr.forEach(p => ctx.fillRect(p.c * cw, p.r * ch, cw - 1, ch - 1));
+        }
+    }
+
+    function resetView() {
+        canvas.width = window.innerWidth - 300;
+        canvas.height = window.innerHeight;
+        scale = 1.0; offX = 50; offY = 50;
+    }
+    window.onresize = resetView;
+    resetView();
+
+    // 마우스 제어
+    let dragging = false, lx, ly;
+    canvas.onmousedown = (e) => { dragging = true; lx = e.clientX; ly = e.clientY; };
+    window.onmouseup = () => dragging = false;
+    window.onmousemove = (e) => {
+        if(!dragging) return;
+        offX += e.clientX - lx; offY += e.clientY - ly;
+        lx = e.clientX; ly = e.clientY; render();
+    };
+    canvas.onwheel = (e) => {
+        e.preventDefault();
+        scale *= (e.deltaY > 0 ? 0.9 : 1.1);
+        render();
+    };
+
+    function calculate() {
+        const sId = document.getElementById('startId').value.trim().toUpperCase();
+        const eId = document.getElementById('endId').value.trim().toUpperCase();
+        const extraM = parseFloat(document.getElementById('extraM').value) || 0;
+
+        if(!mapData.length || !sId || !eId) return;
+
+        let start, end;
+        mapData.forEach((row, r) => row.forEach((v, c) => {
+            if(String(v).toUpperCase() === sId) start = {r, c};
+            if(String(v).toUpperCase() === eId) end = {r, c};
+        }));
+
+        if(!start || !end) return alert("장비 ID를 찾을 수 없습니다.");
+
+        let q = [start], visited = new Set(), parent = new Map();
+        visited.add(`${start.r},${start.c}`);
+
+        while(q.length > 0) {
+            let curr = q.shift();
+            if(curr.r === end.r && curr.c === end.c) {
+                pathArr = [];
+                let t = curr;
+                while(t) { pathArr.push(t); t = parent.get(`${t.r},${t.c}`); }
+                render();
+                const pureDist = (pathArr.length - 1) * 0.6;
+                const totalDist = (pureDist + extraM).toFixed(1);
+
+                const log = document.getElementById('logBox');
+                const div = document.createElement('div');
+                div.style.padding = "10px 0"; div.style.borderBottom = "1px solid #333";
+                div.innerHTML = `<b style="color:#4da3ff">${sId} ➔ ${eId}</b><br>
+                                 <small style="color:#888">순수:${pureDist.toFixed(1)}m + 여장:${extraM}m</small><br>
+                                 거리: <span style="font-size:15px; color:#ffeb3b">${totalDist}m</span>`;
+                log.prepend(div);
+                return;
+            }
+            [[0,1],[0,-1],[1,0],[-1,0]].forEach(([dr, dc]) => {
+                let nr = curr.r + dr, nc = curr.c + dc;
+                let key = `${nr},${nc}`;
+                if(nr>=0 && nr<mapData.length && nc>=0 && nc<mapData[0].length && isTray(mapData[nr][nc]) && !visited.has(key)) {
+                    visited.add(key); parent.set(key, curr); q.push({r:nr, c:nc});
+                }
+            });
+        }
+        alert("경로가 없습니다.");
+    }
+</script>
+</body>
+</html>
