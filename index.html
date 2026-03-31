@@ -2,202 +2,256 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>TRAY NAVI - 엑셀 업로드형</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>TRAY NAVI v16.5 - Voice Control</title>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
     <style>
-        body { font-family: 'Malgun Gothic', sans-serif; background: #1a1a1a; margin: 0; display: flex; height: 100vh; color: #eee; overflow: hidden; }
-        .canvas-container { flex: 1; position: relative; overflow: hidden; background: #000; }
-        canvas { display: block; image-rendering: auto; cursor: crosshair; }
+        * { box-sizing: border-box; margin: 0; padding: 0; touch-action: none; }
+        body { font-family: -apple-system, sans-serif; background: #1a1a1a; color: #eee; height: 100vh; display: flex; overflow: hidden; }
         
-        .side-panel { width: 300px; background: #252525; border-left: 2px solid #444; display: flex; flex-direction: column; padding: 15px; box-sizing: border-box; z-index: 100; }
-        h4 { margin: 0 0 10px 0; color: #4da3ff; border-bottom: 2px solid #1a73e8; padding-bottom: 5px; }
-        
-        .upload-section { background: #333; padding: 12px; border-radius: 6px; margin-bottom: 15px; border: 2px dashed #1a73e8; }
-        input[type="file"] { width: 100%; color: #ccc; font-size: 11px; margin-top: 5px; }
+        .main-container { flex: 1; position: relative; background: #000; overflow: hidden; }
+        canvas { display: block; }
 
-        input[type="text"], input[type="number"] { width: 100%; padding: 10px; background: #444; color: #fff; border: 1px solid #666; border-radius: 4px; margin-bottom: 8px; box-sizing: border-box; }
-        .btn-calc { width: 100%; padding: 15px; background: #1a73e8; color: white; border: none; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 14px; }
+        .side-bar { width: 260px; background: #222; border-left: 1px solid #333; display: flex; flex-direction: column; z-index: 10; }
+        .header { padding: 12px; background: #333; border-bottom: 1px solid #444; font-size: 13px; font-weight: bold; color: #4da3ff; display: flex; justify-content: space-between; }
+        .content { padding: 10px; flex: 1; display: flex; flex-direction: column; overflow: hidden; }
         
-        .log-box { flex: 1; margin-top: 15px; background: #111; border: 1px solid #444; overflow-y: auto; font-size: 12px; padding: 10px; border-radius: 4px; }
-        .status-msg { position: absolute; top: 20px; left: 20px; background: rgba(0,0,0,0.8); color: #fff; padding: 12px 20px; border-radius: 6px; font-weight: bold; z-index: 200; border-left: 5px solid #28a745; display: none; }
+        .control-group { margin-bottom: 10px; background: #2d2d2d; padding: 8px; border-radius: 6px; }
+        label { display: block; font-size: 10px; color: #aaa; margin-bottom: 4px; font-weight: bold; }
+        
+        /* 음성 입력 행 최적화 */
+        .voice-input-row { display: flex; gap: 4px; margin-bottom: 6px; align-items: center; }
+        input { flex: 1; padding: 10px; background: #111; color: #fff; border: 1px solid #444; border-radius: 4px; font-size: 13px; -webkit-appearance: none; }
+        .btn-voice { width: 36px; height: 36px; background: #444; border: none; border-radius: 4px; color: #fff; cursor: pointer; font-size: 16px; display: flex; align-items: center; justify-content: center; }
+        .btn-voice.active { background: #ff5252; animation: blink 1s infinite; }
+        @keyframes blink { 50% { opacity: 0.5; } }
+
+        .btn-calc { width: 100%; padding: 12px; background: #007acc; color: white; border: none; font-weight: bold; border-radius: 4px; font-size: 14px; margin-bottom: 6px; }
+        .btn-save { width: 100%; padding: 8px; background: #28a745; color: white; border: none; font-weight: bold; border-radius: 4px; font-size: 11px; }
+
+        #logBox { flex: 1; background: #000; padding: 8px; font-size: 11px; color: #0f0; overflow-y: auto; border-radius: 4px; border: 1px solid #333; margin-top: 5px; }
+        .log-item { border-bottom: 1px solid #222; padding: 6px 0; line-height: 1.5; }
     </style>
 </head>
 <body>
 
-<div class="canvas-container" id="container">
-    <div class="status-msg" id="statusMsg">파일 분석 중...</div>
+<div class="main-container" id="container">
     <canvas id="trayCanvas"></canvas>
 </div>
 
-<div class="side-panel">
-    <h4>TRAY ENGINE v10.0</h4>
-    
-    <div class="upload-section">
-        <label style="font-size:12px; font-weight:bold; color:#4da3ff;">📁 엑셀 파일 업로드</label>
-        <input type="file" id="fileInput" accept=".xlsx, .xls">
-        <p style="font-size:10px; color:#888; margin: 5px 0 0 0;">첫 번째 시트의 데이터를 자동으로 읽습니다.</p>
+<div class="side-bar">
+    <div class="header">TRAY NAVI <span style="font-size:9px; color:#666;">v16.5🎤</span></div>
+    <div class="content">
+        <div class="control-group">
+            <label>FILE LOAD</label>
+            <input type="file" id="fileInput" accept=".xlsx, .xls">
+        </div>
+
+        <div class="control-group">
+            <label>PATH FINDER (VOICE SUPPORT)</label>
+            <div class="voice-input-row">
+                <input type="text" id="startId" placeholder="출발 랙">
+                <button class="btn-voice" onclick="startVoice('startId')">🎤</button>
+            </div>
+            <div class="voice-input-row">
+                <input type="text" id="endId" placeholder="도착 랙">
+                <button class="btn-voice" onclick="startVoice('endId')">🎤</button>
+            </div>
+            <input type="number" id="extraM" value="8" step="0.5" placeholder="여장(m)">
+            <button class="btn-calc" onclick="calculate()">계산 실행</button>
+            <button class="btn-save" onclick="exportLog()">LOG 엑셀 저장</button>
+        </div>
+
+        <div id="logBox">> Voice ready.</div>
     </div>
-    
-    <label style="font-size:11px; color:#ccc;">경로 검색</label>
-    <input type="text" id="startId" placeholder="출발 ID (예: NG01)">
-    <input type="text" id="endId" placeholder="도착 ID (예: ND01)">
-    <input type="number" id="extraM" value="8" title="여장(m)">
-    
-    <button class="btn-calc" onclick="calculate()">최단 경로 계산</button>
-    
-    <div class="log-box" id="logBox"></div>
 </div>
 
 <script>
     const canvas = document.getElementById('trayCanvas');
     const ctx = canvas.getContext('2d');
-    let mapData = [], pathArr = [];
-    let scale = 1.0, offX = 50, offY = 50;
-    const cw = 32, ch = 24;
+    const container = document.getElementById('container');
+    const logBox = document.getElementById('logBox');
+    
+    let mapData = [], colWidths = [], pathArr = [], calculationHistory = []; 
+    let scale = 1.0, offX = 20, offY = 20, cellH = 26;
 
-    // [파일 업로드 처리]
-    document.getElementById('fileInput').addEventListener('change', function(e) {
-        const file = e.target.files[0];
-        if (!file) return;
+    // --- [음성 인식 엔진] ---
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    const recognition = SpeechRecognition ? new SpeechRecognition() : null;
+    if(recognition) {
+        recognition.lang = 'ko-KR';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 1;
+    }
 
-        const status = document.getElementById('statusMsg');
-        status.style.display = "block";
-        status.innerText = "파일 읽는 중...";
+    function startVoice(targetId) {
+        if(!recognition) return alert("이 브라우저는 음성 인식을 지원하지 않습니다.");
+        const btn = event.currentTarget;
+        btn.classList.add('active');
+        recognition.start();
 
-        const reader = new FileReader();
-        reader.onload = function(evt) {
-            const data = evt.target.result;
-            const workbook = XLSX.read(data, { type: 'binary' });
-            
-            // 첫 번째 시트 선택
-            const sheetName = workbook.SheetNames[0];
-            const sheet = workbook.Sheets[sheetName];
-            
-            // 시트 데이터를 2차원 배열로 변환
-            mapData = XLSX.utils.sheet_to_json(sheet, { header: 1 });
-
-            // 빈 셀 처리 (undefined를 빈 문자열로)
-            mapData = mapData.map(row => row.map(cell => cell ? String(cell).trim() : ""));
-
-            status.innerText = `✅ 로드 완료: ${mapData.length}행 x ${mapData[0].length}열`;
-            pathArr = [];
-            resetView();
-            render();
+        recognition.onresult = (event) => {
+            let text = event.results[0][0].transcript;
+            // 랙 번호 특성상 공백 제거 및 대문자 변환
+            text = text.replace(/\s/g, '').toUpperCase();
+            document.getElementById(targetId).value = text;
+            btn.classList.remove('active');
         };
-        reader.readAsBinaryString(file);
+        recognition.onerror = () => btn.classList.remove('active');
+        recognition.ononspeechend = () => recognition.stop();
+    }
+
+    // --- [터치 및 드로잉 엔진 (기존 기능 유지)] ---
+    let lastTap = 0, isDragging = false, lastDist = 0, lx, ly;
+    container.addEventListener('touchstart', (e) => {
+        if (e.touches.length === 1) {
+            isDragging = true; lx = e.touches[0].clientX; ly = e.touches[0].clientY;
+            const now = Date.now();
+            if (now - lastTap < 300) handleEdit(e.touches[0]);
+            lastTap = now;
+        } else if (e.touches.length === 2) {
+            isDragging = false;
+            lastDist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+        }
     });
+
+    container.addEventListener('touchmove', (e) => {
+        if (isDragging && e.touches.length === 1) {
+            offX += (e.touches[0].clientX - lx); offY += (e.touches[0].clientY - ly);
+            lx = e.touches[0].clientX; ly = e.touches[0].clientY; render();
+        } else if (e.touches.length === 2) {
+            const dist = Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+            scale *= (dist / lastDist); lastDist = dist; render();
+        }
+    });
+
+    container.addEventListener('touchend', () => isDragging = false);
+
+    function handleEdit(touch) {
+        const rect = canvas.getBoundingClientRect();
+        const rx = (touch.clientX - rect.left - offX) / scale;
+        const ry = (touch.clientY - rect.top - offY) / (cellH * scale);
+        const r = Math.floor(ry);
+        let c = -1, accX = 0;
+        for(let i=0; i<colWidths.length; i++) {
+            if(rx >= accX && rx < accX + colWidths[i]) { c = i; break; }
+            accX += colWidths[i];
+        }
+        if(r >= 0 && r < mapData.length && c >= 0 && (mapData[r] && c < colWidths.length)) {
+            const cur = String(mapData[r][c] || "").trim();
+            if(cur === "") mapData[r][c] = "ㅇ";
+            else if(cur === "ㅇ" || cur === "O") {
+                const v = prompt("랙 번호:", "");
+                mapData[r][c] = (v && v.trim()) ? v.toUpperCase() : "ㅇ";
+            } else mapData[r][c] = ""; 
+            updateColWidths(); render();
+        }
+    }
 
     function isTray(v) {
         if (!v) return false;
-        const s = v.toUpperCase();
-        return (s === "ㅇ" || s === "O" || s === "T" || /^[A-Z]{2}\d{2}$/.test(s));
+        const s = String(v).trim().toUpperCase();
+        return s === "ㅇ" || s === "O" || s === "T" || (s.length >= 2 && /[0-9]/.test(s));
     }
+
+    function updateColWidths() {
+        if(!mapData.length) return;
+        colWidths = [];
+        const maxCols = Math.max(...mapData.map(r => r ? r.length : 0));
+        for(let c=0; c < maxCols; c++) {
+            let maxW = 35;
+            for(let r=0; r < mapData.length; r++) {
+                const val = String(mapData[r] && mapData[r][c] ? mapData[r][c] : "");
+                if(val.length > 2) maxW = Math.max(maxW, val.length * 9 + 12);
+            }
+            colWidths[c] = maxW;
+        }
+    }
+
+    function exportLog() {
+        if (calculationHistory.length === 0) return alert("저장할 로그가 없습니다.");
+        const ws = XLSX.utils.json_to_sheet(calculationHistory);
+        const wb = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(wb, ws, "TrayLog");
+        XLSX.writeFile(wb, "Tray_Calculation_Log.xlsx");
+    }
+
+    document.getElementById('fileInput').onchange = (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        const reader = new FileReader();
+        reader.onload = (evt) => {
+            const workbook = XLSX.read(evt.target.result, { type: 'binary' });
+            mapData = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1 });
+            updateColWidths(); autoFit();
+        };
+        reader.readAsBinaryString(file);
+    };
+
+    function autoFit() { canvas.width = container.clientWidth; canvas.height = container.clientHeight; render(); }
 
     function render() {
-        ctx.setTransform(1, 0, 0, 1, 0, 0);
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        if(!mapData.length) return;
-
-        ctx.translate(offX, offY);
-        ctx.scale(scale, scale);
-
-        for(let r=0; r<mapData.length; r++) {
-            for(let c=0; c<mapData[r].length; c++) {
-                const val = mapData[r][c];
-                const x = c * cw, y = r * ch;
-
-                if (isTray(val)) {
-                    ctx.fillStyle = "#2c3e50";
-                    ctx.fillRect(x, y, cw - 1, ch - 1);
-                    if (val.length > 1 && val.toUpperCase() !== "ㅇ") {
-                        ctx.fillStyle = "#ffffff";
-                        ctx.font = "bold 11px Arial";
-                        ctx.textAlign = "center";
-                        ctx.fillText(val.toUpperCase(), x + cw/2, y + 16);
+        ctx.setTransform(1,0,0,1,0,0); ctx.clearRect(0,0,canvas.width,canvas.height);
+        ctx.translate(offX, offY); ctx.scale(scale, scale);
+        mapData.forEach((row, r) => {
+            let cx = 0; if(!row) return;
+            for(let c=0; c < colWidths.length; c++) {
+                const val = row[c], cw = colWidths[c];
+                if(isTray(val)) {
+                    ctx.fillStyle = String(val).length >= 2 ? "#1a73e8" : "#333";
+                    ctx.fillRect(cx, r*cellH, cw-1, cellH-1);
+                    if(String(val).length >= 2) {
+                        ctx.fillStyle = "#fff"; ctx.font = "bold 10px Arial"; ctx.textAlign = "center";
+                        ctx.fillText(val, cx + cw/2, r*cellH + 17);
                     }
-                } else {
-                    ctx.fillStyle = "#111";
-                    ctx.fillRect(x, y, cw - 1, ch - 1);
+                } else { ctx.strokeStyle = "#222"; ctx.strokeRect(cx, r*cellH, cw-1, cellH-1); }
+                if(pathArr.some(p => p.r === r && p.c === c)) {
+                    ctx.fillStyle = "rgba(255, 235, 59, 0.6)"; ctx.fillRect(cx, r*cellH, cw-1, cellH-1);
                 }
+                cx += cw;
             }
-        }
-
-        if(pathArr.length) {
-            ctx.fillStyle = "rgba(255, 235, 59, 0.7)";
-            pathArr.forEach(p => ctx.fillRect(p.c * cw, p.r * ch, cw - 1, ch - 1));
-        }
+        });
     }
-
-    function resetView() {
-        canvas.width = window.innerWidth - 300;
-        canvas.height = window.innerHeight;
-        scale = 1.0; offX = 50; offY = 50;
-    }
-    window.onresize = resetView;
-    resetView();
-
-    // 마우스 제어
-    let dragging = false, lx, ly;
-    canvas.onmousedown = (e) => { dragging = true; lx = e.clientX; ly = e.clientY; };
-    window.onmouseup = () => dragging = false;
-    window.onmousemove = (e) => {
-        if(!dragging) return;
-        offX += e.clientX - lx; offY += e.clientY - ly;
-        lx = e.clientX; ly = e.clientY; render();
-    };
-    canvas.onwheel = (e) => {
-        e.preventDefault();
-        scale *= (e.deltaY > 0 ? 0.9 : 1.1);
-        render();
-    };
 
     function calculate() {
-        const sId = document.getElementById('startId').value.trim().toUpperCase();
-        const eId = document.getElementById('endId').value.trim().toUpperCase();
-        const extraM = parseFloat(document.getElementById('extraM').value) || 0;
-
-        if(!mapData.length || !sId || !eId) return;
-
+        const s = document.getElementById('startId').value.trim().toUpperCase();
+        const e = document.getElementById('endId').value.trim().toUpperCase();
+        const extra = parseFloat(document.getElementById('extraM').value) || 0;
         let start, end;
-        mapData.forEach((row, r) => row.forEach((v, c) => {
-            if(String(v).toUpperCase() === sId) start = {r, c};
-            if(String(v).toUpperCase() === eId) end = {r, c};
-        }));
-
-        if(!start || !end) return alert("장비 ID를 찾을 수 없습니다.");
-
+        mapData.forEach((row, r) => { if(!row) return; row.forEach((v, c) => {
+            if(v && String(v).toUpperCase() === s) start = {r, c};
+            if(v && String(v).toUpperCase() === e) end = {r, c};
+        });});
+        if(!start || !end) return alert("랙 미발견");
+        
         let q = [start], visited = new Set(), parent = new Map();
         visited.add(`${start.r},${start.c}`);
-
-        while(q.length > 0) {
+        while(q.length) {
             let curr = q.shift();
             if(curr.r === end.r && curr.c === end.c) {
-                pathArr = [];
-                let t = curr;
+                pathArr = []; let t = curr;
                 while(t) { pathArr.push(t); t = parent.get(`${t.r},${t.c}`); }
                 render();
-                const pureDist = (pathArr.length - 1) * 0.6;
-                const totalDist = (pureDist + extraM).toFixed(1);
-
-                const log = document.getElementById('logBox');
-                const div = document.createElement('div');
-                div.style.padding = "10px 0"; div.style.borderBottom = "1px solid #333";
-                div.innerHTML = `<b style="color:#4da3ff">${sId} ➔ ${eId}</b><br>
-                                 <small style="color:#888">순수:${pureDist.toFixed(1)}m + 여장:${extraM}m</small><br>
-                                 거리: <span style="font-size:15px; color:#ffeb3b">${totalDist}m</span>`;
-                log.prepend(div);
+                const nodes = pathArr.length;
+                const dist = ((nodes - 1) * 0.6 + extra).toFixed(1);
+                const logItem = document.createElement('div');
+                logItem.className = 'log-item';
+                logItem.innerHTML = `<b>${s}➔${e}</b><br><span style="color:#ffeb3b">${nodes}칸</span> | <b>${dist}m</b>`;
+                logBox.prepend(logItem);
+                calculationHistory.push({ "출발": s, "도착": e, "칸수": nodes, "총거리": dist, "시간": new Date().toLocaleTimeString() });
                 return;
             }
             [[0,1],[0,-1],[1,0],[-1,0]].forEach(([dr, dc]) => {
                 let nr = curr.r + dr, nc = curr.c + dc;
-                let key = `${nr},${nc}`;
-                if(nr>=0 && nr<mapData.length && nc>=0 && nc<mapData[0].length && isTray(mapData[nr][nc]) && !visited.has(key)) {
-                    visited.add(key); parent.set(key, curr); q.push({r:nr, c:nc});
+                if(mapData[nr] && isTray(mapData[nr][nc]) && !visited.has(`${nr},${nc}`)) {
+                    visited.add(`${nr},${nc}`); parent.set(`${nr},${nc}`, curr); q.push({r:nr, c:nc});
                 }
             });
         }
-        alert("경로가 없습니다.");
+        alert("경로 없음");
     }
+    window.onresize = autoFit;
+    autoFit();
 </script>
 </body>
 </html>
